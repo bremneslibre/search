@@ -1,0 +1,38 @@
+container:
+  image: node:13
+
+task:
+  use_compute_credits: $CIRRUS_BRANCH == 'master'
+  node_modules_cache:
+    folder: node_modules
+    fingerprint_script: cat package-lock.json
+    reupload_on_changes: false
+    populate_script: npm ci
+  bootstrap_script: npm run bootstrap
+  matrix:
+    - name: Build
+      build_script: npm run build
+      production_build_snapshot_artifacts:
+        path: build/**/**
+    - name: Prettier
+      prettier_check_script: npm run prettier-check
+    - name: Type Check
+      typecheck_script: npm run typecheck
+  on_failure:
+    npm_logs_artifacts:
+      path: /root/.npm/_logs/**
+  clean_cache_script: rm -rf node_modules/.cache
+
+deploy_docker_builder:
+  only_if: $CIRRUS_BRANCH == "master"
+  depends_on:
+    - Build
+    - Prettier
+    - Type Check
+  environment:
+    DOCKER_USER_NAME: ENCRYPTED[5eb941ed91706fab3eb53bfd01dc3b88caee18e11f9df18b4663875f83e9e390eeb0db087278035b61bf5b24e8f96328]
+    DOCKER_PASSWORD: ENCRYPTED[5e9b3eb1391a7a0cf259c41920ce60d034660cc49f0b85b2738eb53d9a537b90d0d2173d6321096facd11f5e5a9e31c3]
+  build_script:
+    - docker --version
+    - ./.ci/build_docker.sh
+  push_script: ./.ci/push_docker.sh
